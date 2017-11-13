@@ -1,0 +1,191 @@
+
+#include <iostream>     // std::cout
+#include <algorithm>    // std::find
+#include <vector>       // std::vector
+#include <new>   
+#include <algorithm>    // std::sort
+#include <math.h>
+#include <cmath>
+#include <stdio.h>
+#include <string.h>
+#include <string>
+using namespace std;
+
+// design a calculator
+// pay attention the integral is the area under the curve and is approximately = areas of square
+
+double lowbound;
+double upbound;
+double dx;
+double result;
+char op;
+float operand1, operand2;
+double x0;
+double coeffs[4]={5,4,2,3};
+int numCoeffs=4;
+
+double function1(double x)
+{
+    return pow(x,2)+x;       // lets do only x
+}
+
+double sumIntegral(double lowbound, int n, double dx)
+{
+  double cumsum = 0;
+  for(int i = 0; i<n;i++)
+  {
+      double xi = lowbound+i*dx; // incerementing with dx for the lowbound for x
+      double funvalue = function1(xi);
+      double rectangulararea = funvalue*dx; // calculate the area
+     
+      cumsum +=rectangulararea;
+
+  }
+  return cumsum;
+ 
+}   
+
+double f2(double x)
+{
+    return 3*x*x*x+2*x*x+4*x+5; // f(x) = 3x^3 + 2x^2 + 4x + 5,  deriative x ^ n is n * x ^ (n - 1), 
+}
+
+double firstDerivative(double x0)
+{
+	
+//	double x;
+//  double coeffs[4]={5,4,2,3};
+//  int numCoeffs=4;
+    int i;
+    const float epsilon = 0.1e-10;
+    float tmp1, tmp2;
+    double result = 0;
+    float dy = f2(x0+epsilon) - f2(x0);    
+    result = dy/epsilon;
+    return result;
+    
+}
+
+int main()
+{
+    int index = 6;
+    int n;
+    char* key; // allocate the memory of the arrays
+    cout << "please enter the type of operations you want to perfrom, you can enter +, -, *, /, I, D" << endl;
+
+    key = new(nothrow) char[index];
+    
+    for (n=0; n<index; n++)
+    {
+      cout << "Enter the types of operations we want ";
+      cin >> key[n];
+    }
+    
+    cout << "You have entered: ";
+    for (n=0; n<index; n++)
+      cout << key[n] << ", ";
+// allocate the memory of the operators we wnat to perform
+// start to categorize
+
+    std::vector<char> vector;
+    vector.push_back(key[n]); 
+    
+	for(int s=0;s<n;s++)
+	{ 
+	  vector.push_back(key[s]);  // put the user entered operators and store into a dynamic array
+	}
+	
+	std::vector<char>::iterator it;
+    it = find (vector.begin(), vector.end(), 'I'); // search for I
+	if(it!=vector.end())
+{           
+
+			char str[][3]= {"D","I"};
+			int n;
+			for (n=0 ; n<6 ; n++)
+    {
+    	
+		        if (strncmp (str[n],"I",1) == 0)
+		      {
+				    cout << "enter the operation you want " << endl;
+				    cin >> op;
+				    cout << "the function you integrate is f(x) = x^2 + x, we can put any equation " << endl;
+				    cout << "please enter your lower bound ";
+				    cin >> lowbound;
+				    cout << "please enter your higher bound ";
+				    cin >> upbound;
+				    break;
+		      }
+	            else if (strncmp (str[n],"D",1) == 0)
+		      {
+		      	    cout << "enter the operation you want " << endl;
+				    cin >> op;
+				    cout << "the function you differentiate is f(x) = 3x^3 + 2x^2 + 4x + 5, we can put any equation " << endl;
+				    cout << "please  enter the x0 operating point for differentiate";
+				    cin >> x0;
+				    break;
+				    
+			  }
+			  else // neither I nor D which are the followings 
+        {
+		    char buffer[] = { '+', '-', '*', '/'};
+		    std::vector<char> myvector;
+		    std::vector<char>::iterator it;
+	    
+		    for(int i=0; i<4; i++)
+			{
+			    myvector.push_back(buffer[i]);
+			}   
+		
+		    for(std::vector<char>::iterator it = myvector.begin() ; it != myvector.end(); ++it)
+		    {
+		    	cout << "enter the operation you want +, -, *, /, " << endl;
+		        cin >> op;
+		        cout << "enter 2 numbers you want to operate" << endl;
+		        cin >> operand1;
+		        cin >> operand2;
+		        cout << "this is the operation you want to do "<< endl;
+		        cout <<  "operand1 " << op << " operand2 = " << endl;
+		    }
+        }
+    }
+	       
+}
+	    
+    switch(op)
+    {
+        case '+' :
+            cout << operand1+operand2;
+            break;
+            
+        case '-' :
+            cout << operand1-operand2;
+            break;
+            
+        case '*' :
+            cout << operand1*operand2;
+            break;
+            
+        case '/':
+            cout << operand1/operand2;
+            break; 
+			  
+        case 'I':
+            n = 100;
+            dx = (double)(upbound - lowbound)/n;
+            result = sumIntegral(lowbound,n,dx);
+            cout << "integral = " << result << endl;
+            break;
+           
+        case 'D':
+        	 result = firstDerivative(x0);
+             cout << " = " << result << endl;
+             break;
+        default:
+                cout << "the program entered into unknown mode" << endl;
+     
+    }
+       
+    return 0;
+   
+}
