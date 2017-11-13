@@ -1,0 +1,591 @@
+#define F_CPU 14.7456E6
+
+#include <avr/io.h>
+#include <util/delay.h>
+#include <stdio.h>
+#include <avr/pgmspace.h>
+#include <avr/interrupt.h>
+#include <math.h>
+#include <stdlib.h>
+
+int uart_putchar(char c,FILE *stream);
+int uart_getchar(FILE *stream);
+FILE mystdout = FDEV_SETUP_STREAM(uart_putchar,NULL,_FDEV_SETUP_WRITE);
+FILE mystdin = FDEV_SETUP_STREAM(NULL,uart_getchar,_FDEV_SETUP_READ);
+
+int uart_putchar(char c, FILE *stream){
+	
+	loop_until_bit_is_set(UCSR0A,UDRE0);
+	UDR0=c;
+	return 0;
+}
+
+int uart_getchar(FILE *stream){
+	
+	loop_until_bit_is_set(UCSR0A,RXC0);
+	return UDR0;
+}
+
+void init_uart(void){
+	
+	UCSR0B = (1<<RXEN0)|(1<<TXEN0);
+	UBRR0=7;
+	stdout = &mystdout;
+	stdin = &mystdin;
+}
+
+int checkMetal(void){
+	ADCH = 0;
+	DIDR0=0x3F;
+	ADCSRA=0xC7;
+	ADMUX=0x60;
+	_delay_ms(1);
+	int L = ADCH;
+	//Return ADC value
+	return L;
+}
+
+int checkLight(void){
+	ADCH = 0;
+	DIDR0=0x3F;
+	ADCSRA=0xC7;
+	ADMUX=0x61;
+	_delay_ms(1);
+	int L = ADCH;
+	//Return ADC value
+	return L;
+}
+
+int checkLeft(void){
+	ADCH = 0;
+	DIDR0=0x3F;
+	ADCSRA=0xC7;
+	ADMUX=0x62;
+	_delay_ms(1);
+	int L = ADCH;
+	//Return ADC value
+	return L;
+}
+
+int checkRight(void){
+	ADCH = 0;
+	DIDR0=0x3F;
+	ADCSRA=0xC7;
+	ADMUX=0x63;
+	_delay_ms(1);
+	int L = ADCH;
+	//Return ADC value
+	return L;
+}
+
+void adjustRight(void){
+	OCR0A=60;
+	OCR0B=60;
+	OCR2A=95;
+	OCR2B=95;
+}
+
+void adjustLeft(void){
+	OCR0A=95;
+	OCR0B=95;
+	OCR2A=60;
+	OCR2B=60;
+}
+
+void adjustRightS(void){
+	OCR0A=75;
+	OCR0B=75;
+	OCR2A=105;
+	OCR2B=105;
+}
+
+void adjustLeftS(void){
+	OCR0A=105;
+	OCR0B=105;
+	OCR2A=75;
+	OCR2B=75;
+}
+
+void adjustRightF(void){
+	OCR0A=40;
+	OCR0B=40;
+	OCR2A=85;
+	OCR2B=85;
+}
+
+void adjustLeftF(void){
+	OCR0A=120;
+	OCR0B=120;
+	OCR2A=40;
+	OCR2B=40;
+}
+
+void followLeft(void){
+	int val3;
+	int val2 = checkLight();
+	while(val2 > 10){
+		val3 = checkLeft();
+		
+		if (val3 <= 10){
+			adjustRight();
+		}else{
+			adjustLeft();
+		}
+		val2 = checkLight();
+		_delay_ms(10);
+	}
+	OCR0A=255;
+	OCR0B=255;
+	OCR2A=255;
+	OCR2B=255;
+}
+
+void turn_90R(void){
+	printf_P(PSTR("\r start to turn around\r"));
+	
+	OCR2A=65;
+	OCR2B=255;
+	OCR0A=65;
+	OCR0B =65;
+	_delay_ms(800);
+	printf_P(PSTR("\r end turn around\r"));
+	OCR2A=255;
+	OCR2B=255;
+	OCR0A=255;
+	OCR0B =255;
+	
+}
+
+void turn_90L(void){
+	printf_P(PSTR("\r start to turn around\r"));
+	
+	OCR2A=65;
+	OCR2B=65;
+	OCR0A=65;
+	OCR0B =255;
+	_delay_ms(900);
+	printf_P(PSTR("\r end turn around\r"));
+	OCR2A=255;
+	OCR2B=255;
+	OCR0A=255;
+	OCR0B =255;
+	
+}
+
+
+void nudgeReverse(void){
+	OCR2A=65;
+	OCR2B=255;
+	OCR0A=65;
+	OCR0B =255;
+	_delay_ms(1000);
+	
+	printf_P(PSTR("\r end reverse\r"));
+	OCR2A=255;
+	OCR2B=255;
+	OCR0A=255;
+	OCR0B =255;
+}
+
+void forward(int dist){
+	OCR2A=65;
+	OCR2B=65;
+	OCR0A=65;
+	OCR0B =65;
+	int i;
+	for(i=0;i<=dist;i++){
+		_delay_ms(750);
+	}
+	printf_P(PSTR("\r end reverse\r"));
+	OCR2A=255;
+	OCR2B=255;
+	OCR0A=255;
+	OCR0B =255;
+}
+
+void inchForward(int dist){
+	OCR2A=85;
+	OCR2B=85;
+	OCR0A=65;
+	OCR0B =65;
+	int i;
+	for(i=0;i<=dist;i++){
+		_delay_ms(100);
+	}
+	printf_P(PSTR("\r end reverse\r"));
+	OCR2A=255;
+	OCR2B=255;
+	OCR0A=255;
+	OCR0B =255;
+}
+
+void SinchForward(int dist){
+	OCR2A=65;
+	OCR2B=65;
+	OCR0A=65;
+	OCR0B =65;
+	int i;
+	for(i=0;i<=dist;i++){
+		_delay_ms(100);
+	}
+	printf_P(PSTR("\r end reverse\r"));
+	OCR2A=255;
+	OCR2B=255;
+	OCR0A=255;
+	OCR0B =255;
+}
+
+int main(void){
+	/*METAL SOFT = RIGHT HARD
+	LEFT = FRONT
+	RIGHT = LEFT
+	FRONT = METAL
+	*/
+	
+	DDRB=0x18;
+	DDRC=0x1e;  //initializing pins
+	DDRD=0xF0;
+	PORTB=0x18;
+	PORTD=0xC0;
+	sei();
+	int i;
+	init_uart();
+	int isMetal;
+	int val1 = 0;
+	int val2 = 0;
+	int val3 = 0;
+	int val4 = 0;
+	TCCR0A=(1<<COM0A1)|(1<<COM0B1)|(1<<WGM01)|(1<<WGM00);//Initialize clocks for motors
+	TCCR0B=(1<<CS01);
+	TCNT0=0;
+	TCCR2A=(1<<COM2A1)|(1<<COM2B1)|(1<<WGM21)|(1<<WGM20);
+	TCCR2B=(1<<CS21);
+	TCNT2=0;
+	
+	OCR0A=255;
+	OCR0B=255;
+	OCR2A=255;
+	OCR2B=255;
+	
+	while(1){
+		val1 = checkMetal();
+		val2 = checkLight();
+		val3 = checkLeft();
+		val4 = checkRight();
+		printf("FRONT %d   LEFT %d    RIGHT %d\r\n",val2, val3, val4);
+		if(val3 <=10){
+			OCR2A=255;
+			OCR2B=255;
+			OCR0A=255;
+			OCR0B =255;
+			_delay_ms(500);
+			break;
+		}else if(val4 <= 10){
+			adjustRight();
+		}else{
+			adjustLeft();
+		}
+		_delay_ms(10);
+	}
+		
+	
+	//followLeft();
+	_delay_ms(100);
+	turn_90R();
+	_delay_ms(100);
+	nudgeReverse();
+	_delay_ms(100);
+	//forward(1);
+	_delay_ms(100);
+	i=0;
+	while(i<400){
+		val1 = checkMetal();
+		val2 = checkLight();
+		val3 = checkLeft();
+		val4 = checkRight();
+		printf("METAL %d	FRONT %d   LEFT %d    RIGHT %d\r\n",val1 ,val2, val3, val4);
+		if(val2 == 0){
+			adjustRightS();
+			}else{
+			adjustLeftS();
+		}
+		i++;
+		_delay_ms(10);
+		
+	}
+	
+	while(1){
+		val1 = checkMetal();
+		val2 = checkLight();
+		val3 = checkLeft();
+		val4 = checkRight();
+		printf("FRONT %d   LEFT %d    RIGHT %d\r\n",val2, val3, val4);
+		if(val3 <=10){
+			OCR2A=255;
+			OCR2B=255;
+			OCR0A=255;
+			OCR0B =255;
+			_delay_ms(500);
+			break;
+			}else if(val1 <= 10){
+			adjustLeft();
+			}else{
+			adjustRight();
+		}
+		_delay_ms(10);
+	}
+	
+	_delay_ms(100);
+	turn_90L();
+	_delay_ms(100);
+	 
+	/*
+	int count = 0;
+	int temp = 0;
+	i=0;
+	while(i<600){
+		val1 = checkMetal();
+		val2 = checkLight();
+		val3 = checkLeft();
+		val4 = checkRight();
+		printf("FRONT %d   LEFT %d    RIGHT %d\r\n",val2, val3, val4);
+		if(val1 <= 10){
+			adjustLeft();
+		}else{
+			adjustRight();
+		}
+		_delay_ms(10);
+		i++;
+	}
+	
+	*/
+	
+	/*while(1){
+		val1 = checkMetal();
+		temp = checkRight();
+		
+		val2 = checkLight();
+		val3 = checkLeft();
+		val4 = checkRight();
+		
+		printf("VAL %d \r\n", val2);
+		if(val2 <=10){
+			OCR0A=255;
+			OCR0B=255;
+			OCR2A=255;
+			OCR2B=255;
+		}
+		isMetal = 0;
+		
+		if(val1==0){
+			printf("METAL DETECTED %d \r\n", val1);
+			adjustRight();
+			//count = 0;
+		}else{
+			printf("%d \r\n", val1);
+			adjustLeft();
+		//	count++;
+		}
+		if(temp<=10){
+			OCR0A=255;
+			OCR0B=255;
+			OCR2A=255;
+			OCR2B=255;
+			break;
+		}
+		
+		for(i=0;i<(val/10); i++){
+			printf("X");
+		}
+		printf("\r\n");
+		printf("VALUE %d \r\n", val);
+		_delay_ms(10);
+	}*/
+		/*
+	int j;
+	i=0;
+	for(j=0;j<5;j++){
+	while(i<100){
+		val1 = checkMetal();
+		val2 = checkLight();
+		val3 = checkLeft();
+		val4 = checkRight();
+		printf("METAL %d	FRONT %d   LEFT %d    RIGHT %d\r\n",val1 ,val2, val3, val4);
+		if(val2 == 0){
+			adjustRightS();
+			i++;
+		}else{
+			adjustLeftS();
+		}
+		_delay_ms(10);
+		
+	}
+	forward(1);
+	}
+	*/
+		
+	i=0;
+	
+	while(i<800){
+		val1 = checkMetal();
+		val2 = checkLight();
+		val3 = checkLeft();
+		val4 = checkRight();
+		printf("METAL %d	FRONT %d   LEFT %d    RIGHT %d\r\n",val1 ,val2, val3, val4);
+		if(val2 == 0){
+			adjustRight();
+			
+			}else{
+			adjustLeft();
+			
+		}
+		_delay_ms(10);
+		i++;
+	}
+	i = 0;
+	int cnt = 0;
+	while(i<1200){
+		val1 = checkMetal();
+		val2 = checkLight();
+		val3 = checkLeft();
+		val4 = checkRight();
+		printf("METAL %d	FRONT %d   LEFT %d    RIGHT %d\r\n",val1 ,val2, val3, val4);
+		if(val2 == 0){
+			adjustRight();
+			cnt = 0;
+			
+		}else{
+			adjustLeft();
+			cnt++;
+		}
+		if (cnt == 50){
+			OCR2A=255;
+			OCR2B=255;
+			OCR0A=255;
+			OCR0B =255;
+			_delay_ms(100);
+			OCR2A=65;
+			OCR2B=65;
+			OCR0A=65;
+			OCR0B =255;
+			_delay_ms(500);
+			printf_P(PSTR("\r end turn around\r"));
+			OCR2A=255;
+			OCR2B=255;
+			OCR0A=255;
+			OCR0B =255;
+			break;
+		}
+		_delay_ms(10);
+		i++;
+	}
+	i=0;
+	
+	while(i<200){
+		val1 = checkMetal();
+		val2 = checkLight();
+		val3 = checkLeft();
+		val4 = checkRight();
+		printf("METAL %d	FRONT %d   LEFT %d    RIGHT %d\r\n",val1 ,val2, val3, val4);
+		if(val2 == 0){
+			adjustRightS();
+			
+			}else{
+			adjustLeftS();
+			
+		}
+		_delay_ms(10);
+		i++;
+	}
+	i=0;
+	while(i<650){
+		val1 = checkMetal();
+		val2 = checkLight();
+		val3 = checkLeft();
+		val4 = checkRight();
+		printf("METAL %d	FRONT %d   LEFT %d    RIGHT %d\r\n",val1 ,val2, val3, val4);
+		if(val2 == 0){
+			adjustRight();
+			
+			}else{
+			adjustLeft();
+			
+		}
+		_delay_ms(10);
+		i++;
+	}
+	
+	while(1){
+		val1 = checkMetal();
+		val2 = checkLight();
+		val3 = checkLeft();
+		val4 = checkRight();
+		printf("METAL %d	FRONT %d   LEFT %d    RIGHT %d\r\n",val1 ,val2, val3, val4);
+		if(val4 <=10){
+			OCR2A=255;
+			OCR2B=255;
+			OCR0A=255;
+			OCR0B =255;
+			_delay_ms(500);
+			break;
+			}else if(val2 == 0){
+			adjustRightS();
+			
+			}else{
+			adjustLeftS();
+			
+		}
+		_delay_ms(10);
+		i++;
+	}
+	
+	inchForward(7);
+	while(1){
+		val3 = checkLeft();
+		if(val3<=10){
+			break;
+		}
+		_delay_ms(10);
+	}
+	for(i=0;i<10;i++){
+		_delay_ms(1000);
+	}
+	while(1){
+		val3 = checkLeft();
+		if(val3<=10){
+			_delay_ms(1000);
+			break;
+		}
+		_delay_ms(10);
+	}
+	forward(2);
+	//SinchForward(1);
+	turn_90R();
+	
+	for(i=0;i<11;i++){
+		_delay_ms(1000);
+	}
+	i=0;
+	while(i<200){
+		val1 = checkMetal();
+		val2 = checkLight();
+		val3 = checkLeft();
+		val4 = checkRight();
+		printf("FRONT %d   LEFT %d    RIGHT %d\r\n",val2, val3, val4);
+		if(val1 <= 10){
+			adjustLeft();
+		}else{
+			adjustRight();
+		}
+		_delay_ms(10);
+		i++;
+	}
+	forward(8);
+	turn_90L();
+	forward(4);
+	OCR0A=255;
+	OCR0B=255;
+	OCR2A=255;
+	OCR2B=255;
+	return 0;
+}
