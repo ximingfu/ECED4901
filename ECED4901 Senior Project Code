@@ -1,0 +1,271 @@
+#include <SD.h>
+#include <math.h>
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#define icpPin 8 // PB0 ICP D8 Interrupt inputconst int chipSelect = 10;
+#define h_distance 33  // in cm
+#define u_step 0.854 // in cm
+volatile uint16_t Out_Edge1,Out_Edge2;
+volatile uint16_t In_Edge1,In_Edge2;//VARIABLES TO HOLD TIMESTAMPS
+volatile uint8_t Out_Flag =0;
+volatile uint8_t In_Flag =0;
+float deltatime;
+const int chipSelect = 10;
+File myFile;
+const float pi = 3.1415926;
+const float wl = 0.85; // in cm wavelength
+const float cycles = 1000;
+volatile unsigned int  overflows = 0;
+volatile unsigned long edges = 0;
+volatile unsigned long tstart = 0;
+volatile unsigned long tstop = 0;
+volatile unsigned long tnow = 0;
+volatile uint8_t FINALTIME; //VARIABLE TO HOLD THE FINAL TIME
+float period = 0;
+float distance;
+volatile float phase[10];
+volatile float phase_current;
+int phase_wrap = 0;
+int i=0; // account for the phase index
+float frequency = 0;
+// A variable to store the currently measured frequency
+bool isr0 = false;
+volatile bool elapsed_time;
+
+
+void InitTimer1(void)
+{
+  TCNT1=0; //SETTING INTIAL TIMER VALUE
+  TCCR1B|=(1<<ICES1); //SETTING FIRST CAPTURE ON RISING EDGE ,(TCCR1B = TCCR1B | (1<<ICES1)
+  TIMSK1|=(1<<ICIE1)|(1<<TOIE1); //ENABLING INPUT CAPTURE AND OVERFLOW INTERRUPTS
+  TCCR1B|=(1<<CS12); //STARTING TIMER WITH PRESCALER 256
+  sei(); //ENABLING GLOBAL INTERRUPTS
+}
+
+/*--------------------------------------------------------------------------------------------------
+CAPTURE ISR
+---------------------------------------------------------------------------------------------------*/
+ISR(TIMER1_CAPT_vect)
+  {
+  if (In_Flag==0)
+  {
+  In_Edge1=ICR1; //SAVING CAPTURED TIMESTAMP COUTNER VALUE IS COPIED TO ICR1
+  // TCCR1B&=~(1<<ICES1); //CHANGE CAPTURE ON FALLING EDGE
+  }
+  if (In_Flag==1)
+  {
+  In_Edge2=ICR1; //SAVING CAPTURED TIMESTAMP
+  
+  }
+  In_Flag++; //INCREMENTING FLAG
+  }
+  
+  ISR(TIMER1_COMPA_vect)
+  {
+  elapsed_time = true;
+  }
+
+void ISR0() {
+  if (Out_Flag==0)
+    {
+    Out_Edge1=TCNT1; //SAVING CAPTURED TIMESTAMP
+    // TCCR1B&=~(1<<ICES1); //CHANGE CAPTURE ON FALLING EDGE
+    }
+    if (Out_Flag==1)
+    {
+    Out_Edge2=TCNT1; //SAVING CAPTURED TIMESTAMP
+    
+    }
+     Out_Flag++; //INCREMENTING FLAG
+  
+//    Serial.print("\t Output rising capture time = ");
+//    Serial.println(Out_Edge1);
+//    Serial.print("\t index = ");
+//    Serial.println(Out_Flag);
+}
+void startTransducer(){
+      //set timer0 for 40KHz on pin 5 output
+      TCCR0A = _BV(COM0B0)| _BV(WGM01);                   // set entire TCCR0A register to 00010010  Toggle OC0A on Compare Match, CTC mode
+      TCCR0B = _BV(CS01) ;                                // set prescale to 8
+      TCNT0  = 0;                                         // initialize counter value to 0
+      // set compare match register for 8khz increments                                        
+      OCR0A = 24;                                         // = (16*10^6) / (2*40000*8) - 1 (must be <256)
+}
+
+float measureFreq(void) {
+    edges = 0;
+    ACSR = ACSR | B00000010; // enable analog comparator interrupt 
+      // on failing edge (bit 1) which would actually capture a rising
+      // edge of the signal and use the internal bandgap reference
+      // voltage as the positive input (bit 6).
+    //delay(5); // A short wait for bandgap voltage to stabilize.
+    overflows = 0;
+    TCCR1A = B00000000; // Set Timer/Counter 1 in normal mode where 
+    // it will count to 0xFFFF then repeat.
+    TIMSK1 = TIMSK1 | B00000001; // Turn on Timer/Counter 1 overflow 
+    // interrupt (bit 0).
+    // Turn on the counter with no prescaler.
+    TCCR1B = TCCR1B | B00000001;
+    ACSR |=(1<<ACIE)|(1<<ACBG); // Enable analog comparator interrupt 
+    // (bit 3).
+    sei();
+
+    while (edges < (cycles+1)) {
+      // Do nothing.
+    }
+      // Calculate the frequency.
+    frequency = (float)16000000*(float)cycles/(float)(tstop - tstart);
+    period = 1e9/frequency;
+    return period;
+}
+
+ISR(TIMER1_OVF_vect){
+    overflows += 1;
+}
+
+ISR(ANALOG_COMP_vect){
+    tnow = TCNT1; // current time
+    edges += 1;
+    if (edges == 1) {                                       // Start counting edges.
+        tstart = overflows*65536 + tnow;
+    }else if (edges == cycles + 1) {                        // Stop counting edges.
+        tstop = overflows*65536 + tnow;
+        // Turn off Timer/Counter 1 and the comparator.
+        ACSR = 0;
+        TCCR1B = 0;
+    }
+}
+
+void setup(){
+    pinMode(icpPin,INPUT); // icpin pin8
+    pinMode(5, OUTPUT);     // output the periodic square wave at 40KHZ and feed back into 2
+    pinMode(7, INPUT);       // This is the analog comparator negative input. specific pin
+    pinMode(2, INPUT);
+    attachInterrupt(0, ISR0, RISING); // pin2
+    digitalWrite(icpPin,HIGH); //pull up
+    SREG = SREG | B10000000;
+    Serial.begin(9600);
+//      Serial.println("Initializing SD card...");
+//      // On the Ethernet Shield, CS is pin 4. It's set as an output by default.
+//      // Note that even if it's not used as the CS pin, the hardware SS pin 
+//      // (10 on most Arduino boards, 53 on the Mega) must be left as an output 
+//      // or the SD library functions will not work. 
+//      pinMode(10, OUTPUT);
+//   
+//      if(!SD.begin(10)){
+//          Serial.println("initialization failed! No SD_card Detected");
+//          return;
+//      }
+//      Serial.println("initialization completed.");
+//      // open the file. note that only one file can be open at a time,
+//      // so you have to close this one before opening another.
+    startTransducer();
+    sei();
+}
+
+void loop()
+{
+//  myFile = SD.open("data.txt", FILE_WRITE);
+//  if (myFile) {
+//    Serial.print("Writing to test.txt...");
+    InitTimer1(); //CALLING FUNCTION INITTIMER1 TO INITIALIZE TIMER 1
+    TCNT1 = 0;
+    elapsed_time = false;
+    if (Out_Flag==2)
+{
+  Serial.print("\t first Input rising edge time = ");
+  //myFile.print("\t first output rising edge time = ");
+  Serial.print(In_Edge1);
+  //myFile.print(In_Edge1);
+  Serial.print("\t second output rising edge time = ");
+  //myFile.print("\t second output rising edge time = ");
+  Serial.print(Out_Edge1);
+  //myFile.print(Out_Edge1);
+  Serial.println("\t");
+ // myFile.print("\t");
+  deltatime = Out_Edge1-In_Edge1; // Prescaler 256                
+  Serial.print("\t time difference between 2 rising edges = ");
+  //myFile.print("\t time difference between 2 rising edges =");
+  Serial.print(Out_Edge1-In_Edge1);
+  //myFile.print((Out_Edge1-In_Edge1)*0.016);
+  Serial.println("\t us");
+  period = measureFreq();
+  //myFile.print("\t");
+  Serial.print("period = ");
+  //myFile.print("period = ");
+  Serial.print(period,3);
+  //myFile.print(period,3);
+  Serial.print("\t us");
+  //myFile.print("\t us");
+  Serial.println("\t");
+ // myFile.println("\t");
+ 
+ if((deltatime / period) * 360 <= 360) // phase less han a period, no phase wrap
+ {
+   phase_wrap = 0;
+   phase[i] = (deltatime / period) * 360;
+   i++;
+   
+   Serial.print("\t phase = ");
+   //myFile.print("\t phase = ");
+   Serial.print(phase[0]);
+   //myFile.print(phase);
+   Serial.print("\tdegrees");
+   //myFile.print("\t degrees");
+   Serial.print("\t");
+   distance = h_distance - (phase[0]/360)*u_step; // measure the delta x+housing
+   Serial.print("\t distance = ");
+   //myFile.print("\t distance = ");
+   Serial.println(distance,6);
+   //myFile.print(distance);
+   Serial.print("cm");
+   //myFile.print("cm");
+
+  }
+ 
+ 
+ else // phase wrap
+{
+   phase_current = (deltatime / period) * 360;
+   phase[i] = int(phase_current)%360;  // cast float to int
+   phase_wrap =  int((phase_current)/360);
+   i++;
+   Serial.print(" \t number of phase wraps = ");
+   Serial.print(phase_wrap);
+   //myFile.print("\t phase = ");
+   Serial.print("\t phase = ");
+   //myFile.print("\t phase = ");
+   Serial.print(phase[0]);
+   //myFile.print(phase);
+   Serial.print("\t degrees");
+   //myFile.print("\t degrees");
+   Serial.print("\t");
+   if(phase[0]<phase[1])
+   {
+       distance = h_distance + (phase[0]/360)*u_step + phase_wrap*u_step; // measure the delta x+housing
+       Serial.print("\t distance = ");
+       //myFile.print("\t distance = ");
+       Serial.println(distance,6);
+       //myFile.print(distance);
+       Serial.print("cm");
+       //myFile.print("cm");
+   }
+  else
+    {
+       distance = h_distance - phase_wrap*u_step -(phase[0]/360)*u_step;
+       Serial.print("\t distance = ");
+       //myFile.print("\t distance = ");
+       Serial.println(distance,3);
+       //myFile.print(distance);
+       Serial.print("cm");
+       //myFile.print("cm");
+    }
+   }
+ }
+}
+ 
+
+
+
+
+
